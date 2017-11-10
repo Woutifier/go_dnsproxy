@@ -82,8 +82,8 @@ func queryGoogle(qname string, qtype uint16) (*dns.Msg, error) {
 	roundRobinMutex.Lock()
 	currentResolver := openResolvers[roundRobin]
 	roundRobin = (roundRobin + 1) % len(openResolvers)
-	log.Printf("Chosen resolver: %s", currentResolver)
 	roundRobinMutex.Unlock()
+	log.Printf("Chosen resolver: %s", currentResolver)
 
 	in, rtt, err := c.Exchange(m1, currentResolver)
 	if err != nil {
