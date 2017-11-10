@@ -11,21 +11,22 @@ import (
 type DNSProxy struct {
 }
 
+// Global configuration
+var openResolvers = []string{"8.8.8.8:53", "8.8.4.4:53", "208.67.222.222:53", "208.67.220.220:53"}
+var bindAddress string = ":53"
+
+// Global variables
+var roundRobin int = 0
+
 func main() {
+
 	proxy := DNSProxy{}
-	server := &dns.Server{Addr: ":53", Net: "udp", Handler: proxy}
+	server := &dns.Server{Addr: bindAddress, Net: "udp", Handler: proxy}
 
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-
-	/*err = queryGoogle("cloudflare.com.", dns.TypeA)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	*/
-
 }
 
 func (DNSProxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -33,6 +34,7 @@ func (DNSProxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 	m := new(dns.Msg)
 	m.SetReply(r)
+	m.RecursionAvailable = true
 
 	if len(r.Question) == 0 {
 		log.Printf("%v", "Empty DNS message received")
@@ -75,9 +77,13 @@ func queryGoogle(qname string, qtype uint16) (*dns.Msg, error) {
 	m1.Question = make([]dns.Question, 1)
 	m1.Question[0] = dns.Question{qname, qtype, dns.ClassINET}
 
-	in, rtt, err := c.Exchange(m1, "8.8.8.8:53")
+	currentResolver := openResolvers[roundRobin]
+	roundRobin = (roundRobin + 1) % len(openResolvers)
+	log.Printf("Chosen resolver: %s", currentResolver)
+
+	in, rtt, err := c.Exchange(m1, currentResolver)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to receive response from Google DNS")
+		return nil, errors.Wrapf(err, "Unable to receive response from %s", currentResolver)
 	}
 	fmt.Printf("in %v rtt %v err %v", in, rtt, err)
 	return in, nil
