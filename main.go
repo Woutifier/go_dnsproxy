@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/miekg/dns"
 	"github.com/pkg/errors"
@@ -17,6 +18,7 @@ var bindAddress string = ":53"
 
 // Global variables
 var roundRobin int = 0
+var roundRobinMutex = &sync.Mutex{}
 
 func main() {
 
@@ -77,9 +79,11 @@ func queryGoogle(qname string, qtype uint16) (*dns.Msg, error) {
 	m1.Question = make([]dns.Question, 1)
 	m1.Question[0] = dns.Question{qname, qtype, dns.ClassINET}
 
+	roundRobinMutex.Lock()
 	currentResolver := openResolvers[roundRobin]
 	roundRobin = (roundRobin + 1) % len(openResolvers)
 	log.Printf("Chosen resolver: %s", currentResolver)
+	roundRobinMutex.Unlock()
 
 	in, rtt, err := c.Exchange(m1, currentResolver)
 	if err != nil {
